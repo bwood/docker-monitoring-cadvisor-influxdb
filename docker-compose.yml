@@ -1,0 +1,65 @@
+version: '3'
+
+volumes:
+  #influxdbData: ./data/influxdb:/data
+  influxdbData:
+
+services:
+  influxdbData:
+    image: busybox
+    volumes:
+      - influxdbData:/data
+#      - type: volume
+#        source: influxdbData
+#        target: /data
+
+  influxdb:
+    image: influxdb:latest
+    restart: on-failure
+    environment:
+      - PRE_CREATE_DB=cadvisor
+    ports:
+      - "8083:8083"
+      - "8086:8086"
+    expose:
+      - "8090"
+      - "8099"
+    volumes:
+      - influxdbData:/data
+
+  cadvisor:
+    image: gcr.io/google-containers/cadvisor
+    # links is deprecated: https://docs.docker.com/compose/compose-file/#links
+    links:
+      - influxdb:influxsrv
+    command: -storage_driver=influxdb -storage_driver_db=cadvisor -storage_driver_host=influxsrv:8086
+    restart: on-failure
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      # requires root on my machine:
+      - /var/run:/var/run:rw
+      # doesn't exist
+      - /sys:/sys:ro
+      # doesn't exist
+      - /var/lib/docker/:/var/lib/docker:ro
+      # doesn't exist
+      - /dev/disk/:/dev/disk:ro
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: on-failure
+    # links is deprecated: https://docs.docker.com/compose/compose-file/#links
+    links:
+      - influxdb:influxsrv
+    ports:
+      - "3000:3000"
+    environment:
+      - HTTP_USER=admin
+      - HTTP_PASS=admin
+      - INFLUXDB_HOST=influxsrv
+      - INFLUXDB_PORT=8086
+      - INFLUXDB_NAME=cadvisor
+      - INFLUXDB_USER=root
+      - INFLUXDB_PASS=root
